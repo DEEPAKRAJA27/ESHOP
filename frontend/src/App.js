@@ -71,7 +71,6 @@ function App() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [userId, setUserId] = useState(null);
-  const [userEmail, setUserEmail] = useState("");
   const [userName, setUserName] = useState("");
 
   const [products, setProducts] = useState([]);
@@ -107,7 +106,6 @@ function App() {
 
   const loginSuccess = (data) => {
     setUserId(data.user.id);
-    setUserEmail(data.user.email);
     setUserName(data.user.name || data.user.email?.split("@")[0]);
     fetchCart(data.user.id);
     setPage("shop");
@@ -161,7 +159,7 @@ function App() {
 
   const handleLogout = () => {
     setUserId(null); setCart([]); setShowCart(false); setShowAdmin(false);
-    setEmail(""); setPassword(""); setPage("login"); setUserEmail(""); setUserName("");
+    setEmail(""); setPassword(""); setPage("login"); setUserName("");
     if (window.firebase?.auth) window.firebase.auth().signOut().catch(() => {});
   };
 
