@@ -33,6 +33,9 @@ public class ProductController {
         String name = (String) body.get("name");
         Object priceObj = body.get("price");
         String image = (String) body.get("image");
+        String description = (String) body.get("description");
+        String category = (String) body.get("category");
+        Object stockObj = body.get("stock");
 
         if (name == null || priceObj == null) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
@@ -42,7 +45,10 @@ public class ProductController {
         Product product = new Product();
         product.setName(name);
         product.setPrice(new java.math.BigDecimal(priceObj.toString()));
-        product.setImage(image != null && !image.trim().isEmpty() ? image : "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800");
+        product.setImageUrl(image != null && !image.trim().isEmpty() ? image : "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800");
+        product.setDescription(description);
+        product.setCategory(category != null ? category : "General");
+        product.setStock(stockObj != null ? Integer.parseInt(stockObj.toString()) : 0);
 
         Product saved = productRepository.save(product);
         return ResponseEntity.status(HttpStatus.CREATED).body(saved);
@@ -53,7 +59,10 @@ public class ProductController {
         return productRepository.findById(id).map(product -> {
             product.setName(productDetails.getName());
             product.setPrice(productDetails.getPrice());
-            product.setImage(productDetails.getImage());
+            product.setImageUrl(productDetails.getImageUrl());
+            product.setDescription(productDetails.getDescription());
+            product.setCategory(productDetails.getCategory());
+            product.setStock(productDetails.getStock());
             Product updated = productRepository.save(product);
             return ResponseEntity.ok(updated);
         }).orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).build());

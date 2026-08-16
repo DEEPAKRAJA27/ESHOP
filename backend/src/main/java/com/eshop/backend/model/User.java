@@ -13,14 +13,26 @@ public class User {
     @Column(nullable = false, unique = true)
     private String email;
 
-    @Column(nullable = false)
+    @Column(nullable = true)
     private String password;
+
+    private String name;
+
+    @Column(name = "auth_provider")
+    private String authProvider = "LOCAL";
 
     public User() {}
 
     public User(String email, String password) {
         this.email = email;
         this.password = password;
+        this.authProvider = "LOCAL";
+    }
+
+    public User(String email, String name, String authProvider) {
+        this.email = email;
+        this.name = name;
+        this.authProvider = authProvider;
     }
 
     public Long getId() { return id; }
@@ -31,4 +43,10 @@ public class User {
 
     public String getPassword() { return password; }
     public void setPassword(String password) { this.password = password; }
+
+    public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
+
+    public String getAuthProvider() { return authProvider; }
+    public void setAuthProvider(String authProvider) { this.authProvider = authProvider; }
 }
