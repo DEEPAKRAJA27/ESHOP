@@ -1,23 +1,41 @@
 import { useState, useEffect } from "react";
+import "./App.css";
 
 const API_URL = "http://localhost:5000/api";
 
+// Fallback products — all unique images
 const DEFAULT_PRODUCTS = [
-  { name: "Smart Watch", price: 7999, image: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800" },
-  { name: "Wireless Headphones", price: 3499, image: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800" },
-  { name: "Running Shoes", price: 4999, image: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800" },
-  { name: "Laptop", price: 70000, image: "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=800" },
-  { name: "iPhone 14", price: 69999, image: "https://images.unsplash.com/photo-1592750475338-74b7b21085ab?w=800" },
-  { name: "Bluetooth Speaker", price: 2499, image: "https://images.unsplash.com/photo-1608043152269-423dbba4e7e1?w=800" },
-  { name: "Gaming Chair", price: 12999, image: "https://images.unsplash.com/photo-1598550476439-6847785fcea6?w=800" },
-  { name: "Canon Camera", price: 41999, image: "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=800" },
+  { name: "Smart Watch",        price: 7999,  image: "https://images.unsplash.com/photo-1546868871-7041f2a55e12?w=600&auto=format&fit=crop" },
+  { name: "Wireless Headphones",price: 3499,  image: "https://images.unsplash.com/photo-1583394838336-acd977736f90?w=600&auto=format&fit=crop" },
+  { name: "Running Shoes",      price: 4999,  image: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=600&auto=format&fit=crop" },
+  { name: "Laptop",             price: 70000, image: "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=600&auto=format&fit=crop" },
+  { name: "iPhone 14",          price: 69999, image: "https://images.unsplash.com/photo-1592750475338-74b7b21085ab?w=600&auto=format&fit=crop" },
+  { name: "Bluetooth Speaker",  price: 2499,  image: "https://images.unsplash.com/photo-1608043152269-423dbba4e7e1?w=600&auto=format&fit=crop" },
+  { name: "Gaming Chair",       price: 12999, image: "https://images.unsplash.com/photo-1598550476439-6847785fcea6?w=600&auto=format&fit=crop" },
+  { name: "Canon Camera",       price: 41999, image: "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=600&auto=format&fit=crop" },
 ];
+
+const FALLBACK_IMG = "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&auto=format&fit=crop";
+
+function ProductImage({ src, alt, className }) {
+  const [imgSrc, setImgSrc] = useState(src || FALLBACK_IMG);
+  useEffect(() => { setImgSrc(src || FALLBACK_IMG); }, [src]);
+  return (
+    <img
+      src={imgSrc}
+      alt={alt}
+      className={className}
+      onError={() => setImgSrc(FALLBACK_IMG)}
+    />
+  );
+}
 
 function App() {
   const [page, setPage] = useState("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [userId, setUserId] = useState(null);
+  const [userEmail, setUserEmail] = useState("");
 
   const [products, setProducts] = useState([]);
   const [cart, setCart] = useState([]);
@@ -25,21 +43,23 @@ function App() {
   const [showPopup, setShowPopup] = useState("");
   const [showQR, setShowQR] = useState(false);
   const [orderDone, setOrderDone] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  // Admin
   const [showAdmin, setShowAdmin] = useState(false);
   const [editProduct, setEditProduct] = useState(null);
   const [form, setForm] = useState({ name: "", price: "", image: "" });
+  const [search, setSearch] = useState("");
 
-  // ================= FETCH PRODUCTS =================
   const fetchProducts = () => {
     fetch(`${API_URL}/products`)
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then((data) => {
         if (Array.isArray(data) && data.length > 0) {
           setProducts(data);
         } else {
-          // seed default products if DB is empty
           Promise.all(
             DEFAULT_PRODUCTS.map((p) =>
               fetch(`${API_URL}/products`, {
@@ -51,16 +71,15 @@ function App() {
           ).then(() => {
             fetch(`${API_URL}/products`)
               .then((r) => r.json())
-              .then((d) => setProducts(d));
-          });
+              .then((d) => { if (Array.isArray(d)) setProducts(d); });
+          }).catch(() => setProducts(DEFAULT_PRODUCTS));
         }
       })
-      .catch(console.log);
+      .catch(() => setProducts(DEFAULT_PRODUCTS));
   };
 
   useEffect(() => { fetchProducts(); }, []);
 
-  // ================= FETCH CART =================
   const fetchCart = async (uid) => {
     try {
       const res = await fetch(`${API_URL}/cart/${uid}`);
@@ -68,23 +87,28 @@ function App() {
     } catch (err) { console.log(err); }
   };
 
-  // ================= LOGIN =================
   const handleLogin = async () => {
     if (!email || !password) return alert("Enter Email & Password");
+    setLoading(true);
     try {
       const res = await fetch(`${API_URL}/login`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
       const data = await res.json();
-      if (res.ok) { setUserId(data.user.id); fetchCart(data.user.id); setPage("shop"); }
-      else alert(data.error || "Login Failed");
+      if (res.ok) {
+        setUserId(data.user.id);
+        setUserEmail(data.user.email);
+        fetchCart(data.user.id);
+        setPage("shop");
+      } else alert(data.error || "Login Failed");
     } catch { alert("Backend not connected"); }
+    setLoading(false);
   };
 
-  // ================= REGISTER =================
   const handleRegister = async () => {
     if (!email || !password) return alert("Enter Email & Password");
+    setLoading(true);
     try {
       const res = await fetch(`${API_URL}/register`, {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -94,22 +118,22 @@ function App() {
       if (res.ok) { alert("Account created! Please login."); setPage("login"); setEmail(""); setPassword(""); }
       else alert(data.error || "Register Failed");
     } catch { alert("Backend not connected"); }
+    setLoading(false);
   };
 
-  // ================= LOGOUT =================
   const handleLogout = () => {
     setUserId(null); setCart([]); setShowCart(false);
-    setEmail(""); setPassword(""); setPage("login"); setShowAdmin(false);
+    setEmail(""); setPassword(""); setPage("login"); setShowAdmin(false); setUserEmail("");
   };
 
-  // ================= CART =================
   const addToCart = async (product) => {
     try {
       await fetch(`${API_URL}/cart`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ user_id: userId, product_id: product.id, quantity: 1 }),
       });
-      setShowPopup("✅ Added to cart!"); setTimeout(() => setShowPopup(""), 1500);
+      setShowPopup("✅ Added to cart!");
+      setTimeout(() => setShowPopup(""), 2000);
       fetchCart(userId);
     } catch (err) { console.log(err); }
   };
@@ -121,7 +145,6 @@ function App() {
     } catch (err) { console.log(err); }
   };
 
-  // ================= CHECKOUT =================
   const handleCheckout = async () => {
     try {
       await fetch(`${API_URL}/orders`, {
@@ -133,7 +156,6 @@ function App() {
     } catch (err) { console.log(err); }
   };
 
-  // ================= ADMIN =================
   const handleSaveProduct = async () => {
     if (!form.name || !form.price) return alert("Name and price required");
     const method = editProduct ? "PUT" : "POST";
@@ -146,7 +168,7 @@ function App() {
       setForm({ name: "", price: "", image: "" }); setEditProduct(null);
       fetchProducts();
       setShowPopup(editProduct ? "✅ Product updated!" : "✅ Product added!");
-      setTimeout(() => setShowPopup(""), 1500);
+      setTimeout(() => setShowPopup(""), 2000);
     } catch (err) { console.log(err); }
   };
 
@@ -161,134 +183,168 @@ function App() {
   const startEdit = (p) => {
     setEditProduct(p);
     setForm({ name: p.name, price: p.price, image: p.image || "" });
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
-
-  const [search, setSearch] = useState("");
 
   const totalAmount = cart.reduce((sum, item) => sum + Number(item.price) * item.quantity, 0);
   const filteredProducts = products.filter((p) => p.name.toLowerCase().includes(search.toLowerCase()));
 
-  // ================= AUTH PAGE =================
+  // ── AUTH PAGE ──────────────────────────────────────────────────────────────
   if (page === "login" || page === "register") {
     const isLogin = page === "login";
     return (
-      <div style={{ height: "100vh", display: "flex", justifyContent: "center", alignItems: "center", background: "linear-gradient(135deg,#667eea,#764ba2)" }}>
-        <div style={{ background: "white", padding: "40px", borderRadius: "16px", width: "360px", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
-          <div style={{ textAlign: "center", marginBottom: "10px", fontSize: "40px" }}>🛍️</div>
-          <h2 style={{ textAlign: "center", margin: "0 0 20px", color: "#333" }}>{isLogin ? "Welcome Back" : "Create Account"}</h2>
+      <div className="auth-bg">
+        <div className="auth-left">
+          <div className="auth-brand">
+            <span className="auth-brand-icon">🛍️</span>
+            <h1>EShop</h1>
+            <p>Your one-stop destination for everything you need</p>
+          </div>
+          <div className="auth-features">
+            <div className="auth-feature"><span>🚀</span> Fast Delivery</div>
+            <div className="auth-feature"><span>🔒</span> Secure Payments</div>
+            <div className="auth-feature"><span>💎</span> Premium Products</div>
+          </div>
+        </div>
 
-          <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)}
-            style={{ width: "100%", padding: "12px", marginBottom: "12px", boxSizing: "border-box", borderRadius: "8px", border: "1px solid #ddd", fontSize: "14px" }} />
+        <div className="auth-right">
+          <div className="auth-card">
+            <h2>{isLogin ? "Welcome Back 👋" : "Create Account 🎉"}</h2>
+            <p className="auth-sub">{isLogin ? "Sign in to continue shopping" : "Join thousands of happy shoppers"}</p>
 
-          <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && (isLogin ? handleLogin() : handleRegister())}
-            style={{ width: "100%", padding: "12px", boxSizing: "border-box", borderRadius: "8px", border: "1px solid #ddd", fontSize: "14px" }} />
+            <div className="auth-field">
+              <label>Email</label>
+              <input type="email" placeholder="you@example.com" value={email}
+                onChange={(e) => setEmail(e.target.value)} className="auth-input" />
+            </div>
+            <div className="auth-field">
+              <label>Password</label>
+              <input type="password" placeholder="••••••••" value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && (isLogin ? handleLogin() : handleRegister())}
+                className="auth-input" />
+            </div>
 
-          <button onClick={isLogin ? handleLogin : handleRegister}
-            style={{ width: "100%", marginTop: "16px", padding: "13px", background: "linear-gradient(135deg,#667eea,#764ba2)", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontSize: "16px", fontWeight: "bold" }}>
-            {isLogin ? "Login" : "Create Account"}
-          </button>
+            <button onClick={isLogin ? handleLogin : handleRegister}
+              className="auth-btn" disabled={loading}>
+              {loading ? "Please wait..." : (isLogin ? "Sign In" : "Create Account")}
+            </button>
 
-          <p style={{ textAlign: "center", marginTop: "16px", fontSize: "14px", color: "#666" }}>
-            {isLogin ? "No account? " : "Already have an account? "}
-            <span onClick={() => { setPage(isLogin ? "register" : "login"); setEmail(""); setPassword(""); }}
-              style={{ color: "#667eea", cursor: "pointer", fontWeight: "bold" }}>
-              {isLogin ? "Register" : "Login"}
-            </span>
-          </p>
+            <p className="auth-switch">
+              {isLogin ? "Don't have an account? " : "Already have an account? "}
+              <span onClick={() => { setPage(isLogin ? "register" : "login"); setEmail(""); setPassword(""); }}>
+                {isLogin ? "Register" : "Sign In"}
+              </span>
+            </p>
+          </div>
         </div>
       </div>
     );
   }
 
-  // ================= SHOP PAGE =================
+  // ── SHOP PAGE ──────────────────────────────────────────────────────────────
   return (
-    <div style={{ fontFamily: "'Segoe UI', Arial, sans-serif", background: "#f0f2f5", minHeight: "100vh" }}>
+    <div className="app">
 
-      {/* TOAST POPUP */}
-      {showPopup && (
-        <div style={{ position: "fixed", top: "20px", right: "20px", background: "#2ecc71", color: "white", padding: "14px 24px", borderRadius: "10px", zIndex: 9999, fontWeight: "bold", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }}>
-          {showPopup}
-        </div>
-      )}
+      {/* TOAST */}
+      {showPopup && <div className="toast">{showPopup}</div>}
 
-      {/* ORDER DONE */}
+      {/* ORDER SUCCESS */}
       {orderDone && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000 }}>
-          <div style={{ background: "white", padding: "50px", borderRadius: "16px", textAlign: "center", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
-            <div style={{ fontSize: "60px" }}>🎉</div>
-            <h2 style={{ color: "#2ecc71", margin: "10px 0" }}>Order Placed!</h2>
-            <p style={{ color: "#666" }}>Thank you for your purchase.</p>
+        <div className="overlay">
+          <div className="order-success">
+            <div className="success-icon">🎉</div>
+            <h2>Order Placed!</h2>
+            <p>Thank you for your purchase. We'll deliver it soon!</p>
           </div>
         </div>
       )}
 
       {/* HEADER */}
-      <header style={{ background: "linear-gradient(90deg,#1a1a2e,#16213e,#0f3460)", color: "white", padding: "16px 30px", display: "flex", justifyContent: "space-between", alignItems: "center", boxShadow: "0 2px 20px rgba(0,0,0,0.3)" }}>
-        <h1 style={{ margin: 0, fontSize: "24px", letterSpacing: "1px" }}>🛍️ EShop</h1>
-        <div style={{ display: "flex", gap: "10px" }}>
-          <button onClick={() => { setShowAdmin(false); setShowCart(!showCart); if (!showCart) fetchCart(userId); }}
-            style={{ padding: "9px 18px", borderRadius: "8px", border: "none", cursor: "pointer", background: showCart ? "#e74c3c" : "white", color: showCart ? "white" : "#333", fontWeight: "bold" }}>
-            {showCart ? "← Shop" : `🛒 Cart (${cart.length})`}
+      <header className="header">
+        <div className="header-left">
+          <span className="logo-icon">🛍️</span>
+          <span className="logo-text">EShop</span>
+        </div>
+
+        <div className="header-search">
+          {!showCart && !showAdmin && (
+            <>
+              <span className="search-icon">🔍</span>
+              <input
+                placeholder="Search products..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="header-search-input"
+              />
+              {search && <span className="search-clear" onClick={() => setSearch("")}>✕</span>}
+            </>
+          )}
+        </div>
+
+        <div className="header-right">
+          <button className={`nav-btn ${showCart ? "active-red" : "cart-btn"}`}
+            onClick={() => { setShowAdmin(false); setShowCart(!showCart); if (!showCart) fetchCart(userId); }}>
+            {showCart ? "← Shop" : (
+              <span className="cart-label">
+                🛒 Cart
+                {cart.length > 0 && <span className="cart-badge">{cart.length}</span>}
+              </span>
+            )}
           </button>
-          <button onClick={() => { setShowCart(false); setShowAdmin(!showAdmin); }}
-            style={{ padding: "9px 18px", borderRadius: "8px", border: "none", cursor: "pointer", background: showAdmin ? "#f39c12" : "#3498db", color: "white", fontWeight: "bold" }}>
+          <button className={`nav-btn ${showAdmin ? "active-orange" : "admin-btn"}`}
+            onClick={() => { setShowCart(false); setShowAdmin(!showAdmin); }}>
             {showAdmin ? "← Shop" : "⚙️ Admin"}
           </button>
-          <button onClick={handleLogout}
-            style={{ padding: "9px 18px", borderRadius: "8px", border: "none", cursor: "pointer", background: "#e74c3c", color: "white", fontWeight: "bold" }}>
-            Logout
-          </button>
+          <div className="user-menu">
+            <span className="user-avatar">{userEmail ? userEmail[0].toUpperCase() : "U"}</span>
+            <button className="nav-btn logout-btn" onClick={handleLogout}>Logout</button>
+          </div>
         </div>
       </header>
 
-      {/* ADMIN PANEL */}
+      {/* ── ADMIN PANEL ── */}
       {showAdmin && (
-        <div style={{ padding: "30px", maxWidth: "900px", margin: "0 auto" }}>
-          <h2 style={{ marginBottom: "20px" }}>⚙️ Admin — Manage Products</h2>
+        <div className="page-container">
+          <div className="page-header">
+            <h2>⚙️ Manage Products</h2>
+            <span className="product-count">{products.length} products</span>
+          </div>
 
-          {/* FORM */}
-          <div style={{ background: "white", padding: "24px", borderRadius: "12px", boxShadow: "0 2px 12px rgba(0,0,0,0.08)", marginBottom: "30px" }}>
-            <h3 style={{ margin: "0 0 16px" }}>{editProduct ? "✏️ Edit Product" : "➕ Add New Product"}</h3>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-              <input placeholder="Product Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
-                style={{ padding: "10px", borderRadius: "8px", border: "1px solid #ddd", fontSize: "14px" }} />
-              <input placeholder="Price (₹)" type="number" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })}
-                style={{ padding: "10px", borderRadius: "8px", border: "1px solid #ddd", fontSize: "14px" }} />
-              <input placeholder="Image URL (optional)" value={form.image} onChange={(e) => setForm({ ...form, image: e.target.value })}
-                style={{ padding: "10px", borderRadius: "8px", border: "1px solid #ddd", fontSize: "14px", gridColumn: "1 / -1" }} />
+          <div className="admin-form-card">
+            <h3>{editProduct ? "✏️ Edit Product" : "➕ Add New Product"}</h3>
+            <div className="admin-form-grid">
+              <input placeholder="Product Name" value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })} className="form-input" />
+              <input placeholder="Price (₹)" type="number" value={form.price}
+                onChange={(e) => setForm({ ...form, price: e.target.value })} className="form-input" />
+              <input placeholder="Image URL (optional)" value={form.image}
+                onChange={(e) => setForm({ ...form, image: e.target.value })}
+                className="form-input form-input-full" />
             </div>
-            <div style={{ display: "flex", gap: "10px", marginTop: "14px" }}>
-              <button onClick={handleSaveProduct}
-                style={{ padding: "10px 24px", background: editProduct ? "#f39c12" : "#2ecc71", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "bold" }}>
+            <div className="form-actions">
+              <button onClick={handleSaveProduct} className={`form-btn ${editProduct ? "btn-orange" : "btn-green"}`}>
                 {editProduct ? "Update Product" : "Add Product"}
               </button>
               {editProduct && (
                 <button onClick={() => { setEditProduct(null); setForm({ name: "", price: "", image: "" }); }}
-                  style={{ padding: "10px 24px", background: "#ccc", border: "none", borderRadius: "8px", cursor: "pointer" }}>
-                  Cancel
-                </button>
+                  className="form-btn btn-gray">Cancel</button>
               )}
             </div>
           </div>
 
-          {/* PRODUCT LIST */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(250px,1fr))", gap: "16px" }}>
+          <div className="products-grid">
             {products.map((p) => (
-              <div key={p.id} style={{ background: "white", borderRadius: "12px", overflow: "hidden", boxShadow: "0 2px 12px rgba(0,0,0,0.08)" }}>
-                <img src={p.image} alt={p.name} style={{ width: "100%", height: "150px", objectFit: "cover" }} />
-                <div style={{ padding: "12px" }}>
-                  <h4 style={{ margin: "0 0 4px" }}>{p.name}</h4>
-                  <p style={{ margin: "0 0 12px", color: "#e74c3c", fontWeight: "bold" }}>₹{p.price}</p>
-                  <div style={{ display: "flex", gap: "8px" }}>
-                    <button onClick={() => startEdit(p)}
-                      style={{ flex: 1, padding: "8px", background: "#3498db", color: "white", border: "none", borderRadius: "6px", cursor: "pointer" }}>
-                      ✏️ Edit
-                    </button>
-                    <button onClick={() => handleDeleteProduct(p.id)}
-                      style={{ flex: 1, padding: "8px", background: "#e74c3c", color: "white", border: "none", borderRadius: "6px", cursor: "pointer" }}>
-                      🗑️ Delete
-                    </button>
+              <div key={p.id} className="product-card">
+                <div className="product-img-wrap">
+                  <ProductImage src={p.image} alt={p.name} className="product-img" />
+                </div>
+                <div className="product-info">
+                  <h4 className="product-name">{p.name}</h4>
+                  <p className="product-price">₹{Number(p.price).toLocaleString()}</p>
+                  <div className="admin-actions">
+                    <button onClick={() => startEdit(p)} className="action-btn btn-blue">✏️ Edit</button>
+                    <button onClick={() => handleDeleteProduct(p.id)} className="action-btn btn-red">🗑️ Delete</button>
                   </div>
                 </div>
               </div>
@@ -297,108 +353,194 @@ function App() {
         </div>
       )}
 
-      {/* PRODUCTS GRID */}
+      {/* ── SHOP GRID ── */}
       {!showCart && !showAdmin && (
-        <div style={{ padding: "30px" }}>
-            <div style={{ marginBottom: "24px", display: "flex", alignItems: "center", background: "white", borderRadius: "10px", padding: "10px 16px", boxShadow: "0 2px 10px rgba(0,0,0,0.07)" }}>
-            <span style={{ fontSize: "18px", marginRight: "10px" }}>🔍</span>
-            <input
-              placeholder="Search products..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              style={{ border: "none", outline: "none", fontSize: "16px", width: "100%", background: "transparent" }}
-            />
-            {search && <span onClick={() => setSearch("")} style={{ cursor: "pointer", color: "#999", fontSize: "18px" }}>✕</span>}
+        <div className="page-container">
+          <div className="shop-hero">
+            <div className="hero-tag">✨ New Arrivals</div>
+            <h2>Discover Amazing Products</h2>
+            <p>Shop the latest tech, fashion, and lifestyle products — all in one place</p>
+            <div className="hero-stats">
+              <div className="hero-stat">
+                <div className="hero-stat-num">{products.length}+</div>
+                <div className="hero-stat-label">Products</div>
+              </div>
+              <div className="hero-stat">
+                <div className="hero-stat-num">FREE</div>
+                <div className="hero-stat-label">Delivery</div>
+              </div>
+              <div className="hero-stat">
+                <div className="hero-stat-num">24/7</div>
+                <div className="hero-stat-label">Support</div>
+              </div>
+            </div>
           </div>
-          <h2 style={{ marginBottom: "20px", color: "#333" }}>🔥 Featured Products</h2>
-          {filteredProducts.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "60px", color: "#999" }}>
-              <div style={{ fontSize: "50px" }}>📦</div>
-              <p>No products yet. Go to Admin to add some!</p>
-            </div>
-          ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(240px,1fr))", gap: "24px" }}>
-              {filteredProducts.map((product) => (
-                <div key={product.id} style={{ background: "white", borderRadius: "14px", overflow: "hidden", boxShadow: "0 4px 20px rgba(0,0,0,0.08)", transition: "transform 0.2s", cursor: "default" }}
-                  onMouseEnter={(e) => e.currentTarget.style.transform = "translateY(-4px)"}
-                  onMouseLeave={(e) => e.currentTarget.style.transform = "translateY(0)"}>
-                  <div style={{ position: "relative" }}>
-                    <img src={product.image} alt={product.name} style={{ width: "100%", height: "200px", objectFit: "cover" }} />
-                  </div>
-                  <div style={{ padding: "16px" }}>
-                    <h3 style={{ margin: "0 0 6px", fontSize: "16px", color: "#222" }}>{product.name}</h3>
-                    <p style={{ margin: "0 0 14px", fontSize: "20px", fontWeight: "bold", color: "#e74c3c" }}>₹{Number(product.price).toLocaleString()}</p>
-                    <button onClick={() => addToCart(product)}
-                      style={{ width: "100%", padding: "11px", background: "linear-gradient(135deg,#667eea,#764ba2)", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "bold", fontSize: "14px" }}>
-                      🛒 Add to Cart
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
 
-      {/* CART */}
-      {showCart && (
-        <div style={{ padding: "30px", maxWidth: "800px", margin: "0 auto" }}>
-          <h2 style={{ marginBottom: "20px" }}>🛒 Your Cart</h2>
-          {cart.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "60px", background: "white", borderRadius: "12px" }}>
-              <div style={{ fontSize: "50px" }}>🛒</div>
-              <p style={{ color: "#999" }}>Your cart is empty</p>
+          {filteredProducts.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-icon">📦</div>
+              <h3>No products found</h3>
+              <p>{search ? `No results for "${search}"` : "Go to Admin to add products!"}</p>
             </div>
           ) : (
-            <>
-              {cart.map((item) => (
-                <div key={item.product_id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "white", padding: "16px", marginBottom: "12px", borderRadius: "12px", boxShadow: "0 2px 10px rgba(0,0,0,0.06)" }}>
-                  <div style={{ display: "flex", gap: "16px", alignItems: "center" }}>
-                    <img src={item.image} alt={item.name} style={{ width: "75px", height: "75px", objectFit: "cover", borderRadius: "8px" }} />
-                    <div>
-                      <h4 style={{ margin: "0 0 4px" }}>{item.name}</h4>
-                      <p style={{ margin: 0, color: "#e74c3c", fontWeight: "bold" }}>₹{Number(item.price).toLocaleString()} × {item.quantity}</p>
+            <div className="products-grid">
+              {filteredProducts.map((product) => (
+                <div key={product.id} className="product-card shop-card">
+                  <div className="product-img-wrap">
+                    <ProductImage src={product.image} alt={product.name} className="product-img" />
+                    <span className="price-badge">₹{Number(product.price).toLocaleString()}</span>
+                    <div className="product-overlay">
+                      <button onClick={() => addToCart(product)} className="quick-add-btn">
+                        + Quick Add
+                      </button>
                     </div>
                   </div>
-                  <button onClick={() => removeFromCart(item.product_id)}
-                    style={{ background: "#e74c3c", color: "white", border: "none", padding: "9px 16px", borderRadius: "8px", cursor: "pointer", fontWeight: "bold" }}>
-                    Remove
-                  </button>
+                  <div className="product-info">
+                    <h3 className="product-name">{product.name}</h3>
+                    <div className="product-footer">
+                      <span className="product-price">₹{Number(product.price).toLocaleString()}</span>
+                      <button onClick={() => addToCart(product)} className="add-cart-btn">
+                        🛒 Add
+                      </button>
+                    </div>
+                  </div>
                 </div>
               ))}
-              <div style={{ background: "white", padding: "20px", borderRadius: "12px", marginTop: "10px", boxShadow: "0 2px 10px rgba(0,0,0,0.06)" }}>
-                <h2 style={{ margin: "0 0 16px" }}>Total: ₹{totalAmount.toLocaleString()}</h2>
-                <button onClick={() => setShowQR(true)}
-                  style={{ padding: "13px 35px", background: "linear-gradient(135deg,#2ecc71,#27ae60)", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontSize: "16px", fontWeight: "bold" }}>
-                  💳 Checkout
-                </button>
-              </div>
-            </>
+            </div>
           )}
         </div>
       )}
 
-      {/* QR PAYMENT */}
+      {/* ── CART ── */}
+      {showCart && (
+        <div className="page-container cart-container">
+          <div className="page-header">
+            <h2>🛒 Your Cart</h2>
+            {cart.length > 0 && <span className="product-count">{cart.length} items</span>}
+          </div>
+
+          {cart.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-icon">🛒</div>
+              <h3>Your cart is empty</h3>
+              <p>Add some products to get started!</p>
+              <button onClick={() => setShowCart(false)} className="auth-btn" style={{ marginTop: "16px", width: "auto", padding: "12px 32px" }}>
+                Browse Products
+              </button>
+            </div>
+          ) : (
+            <div className="cart-layout">
+              <div className="cart-items">
+                {cart.map((item) => (
+                  <div key={item.product_id} className="cart-item">
+                    <ProductImage src={item.image} alt={item.name} className="cart-item-img" />
+                    <div className="cart-item-info">
+                      <h4>{item.name}</h4>
+                      <p className="cart-item-price">₹{Number(item.price).toLocaleString()} × {item.quantity}</p>
+                      <p className="cart-item-subtotal">Subtotal: ₹{(Number(item.price) * item.quantity).toLocaleString()}</p>
+                    </div>
+                    <button onClick={() => removeFromCart(item.product_id)} className="remove-btn">✕</button>
+                  </div>
+                ))}
+              </div>
+
+              <div className="cart-summary">
+                <h3>Order Summary</h3>
+                <div className="summary-row"><span>Items ({cart.length})</span><span>₹{totalAmount.toLocaleString()}</span></div>
+                <div className="summary-row"><span>Delivery</span><span className="free-tag">FREE</span></div>
+                <div className="summary-divider" />
+                <div className="summary-total"><span>Total</span><span>₹{totalAmount.toLocaleString()}</span></div>
+                <button onClick={() => setShowQR(true)} className="checkout-btn">
+                  💳 Proceed to Pay
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── QR PAYMENT ── */}
       {showQR && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 999 }}>
-          <div style={{ background: "white", padding: "40px", borderRadius: "16px", textAlign: "center", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
-            <h2 style={{ marginBottom: "5px" }}>Scan to Pay</h2>
-            <p style={{ color: "#e74c3c", fontSize: "22px", fontWeight: "bold", margin: "0 0 20px" }}>₹{totalAmount.toLocaleString()}</p>
-            <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=upi://pay?am=${totalAmount}`} alt="QR" style={{ borderRadius: "8px" }} />
-            <p style={{ color: "#666", marginTop: "10px" }}>PhonePe / Google Pay / Paytm</p>
-            <div style={{ display: "flex", gap: "10px", justifyContent: "center", marginTop: "20px" }}>
-              <button onClick={handleCheckout}
-                style={{ padding: "11px 28px", background: "#2ecc71", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "bold", fontSize: "15px" }}>
-                ✅ I've Paid
-              </button>
-              <button onClick={() => setShowQR(false)}
-                style={{ padding: "11px 28px", background: "#ccc", border: "none", borderRadius: "8px", cursor: "pointer", fontSize: "15px" }}>
-                Cancel
-              </button>
+        <div className="overlay" onClick={(e) => e.target.className === "overlay" && setShowQR(false)}>
+          <div className="qr-modal">
+            <button className="modal-close" onClick={() => setShowQR(false)}>✕</button>
+            <h2>Scan & Pay</h2>
+            <p className="qr-amount">₹{totalAmount.toLocaleString()}</p>
+            <div className="qr-wrap">
+              <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=upi://pay?am=${totalAmount}&cu=INR`}
+                alt="QR Code"
+                className="qr-img"
+              />
+            </div>
+            <p className="qr-apps">PhonePe · Google Pay · Paytm</p>
+            <div className="qr-actions">
+              <button onClick={handleCheckout} className="form-btn btn-green">✅ I've Paid</button>
+              <button onClick={() => setShowQR(false)} className="form-btn btn-gray">Cancel</button>
             </div>
           </div>
         </div>
       )}
+
+      {/* ── FOOTER ── */}
+      <footer className="footer">
+        <div className="footer-inner">
+          <div className="footer-brand">
+            <span className="footer-logo">🛍️ EShop</span>
+            <p>Your one-stop destination for premium products. Fast delivery, secure payments, and 24/7 support.</p>
+            <div className="footer-socials">
+              <a href="#" className="social-btn">𝕏</a>
+              <a href="#" className="social-btn">in</a>
+              <a href="#" className="social-btn">f</a>
+              <a href="#" className="social-btn">▶</a>
+            </div>
+          </div>
+
+          <div className="footer-col">
+            <h4>Shop</h4>
+            <a href="#">All Products</a>
+            <a href="#">Electronics</a>
+            <a href="#">Fashion</a>
+            <a href="#">Home & Kitchen</a>
+            <a href="#">Sports & Fitness</a>
+          </div>
+
+          <div className="footer-col">
+            <h4>Support</h4>
+            <a href="#">Help Center</a>
+            <a href="#">Track Order</a>
+            <a href="#">Returns & Refunds</a>
+            <a href="#">Contact Us</a>
+            <a href="#">FAQs</a>
+          </div>
+
+          <div className="footer-col">
+            <h4>Company</h4>
+            <a href="#">About Us</a>
+            <a href="#">Careers</a>
+            <a href="#">Privacy Policy</a>
+            <a href="#">Terms of Service</a>
+            <a href="#">Blog</a>
+          </div>
+        </div>
+
+        <div className="footer-badges">
+          <div className="footer-badge"><span>🚀</span> Free Delivery</div>
+          <div className="footer-badge"><span>🔒</span> Secure Payments</div>
+          <div className="footer-badge"><span>↩️</span> Easy Returns</div>
+          <div className="footer-badge"><span>🎧</span> 24/7 Support</div>
+        </div>
+
+        <div className="footer-bottom">
+          <p>© {new Date().getFullYear()} EShop. All rights reserved. Made with ❤️ in India.</p>
+          <div className="footer-pay-icons">
+            <span className="pay-icon">VISA</span>
+            <span className="pay-icon">MC</span>
+            <span className="pay-icon">UPI</span>
+            <span className="pay-icon">GPay</span>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
